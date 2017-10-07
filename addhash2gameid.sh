@@ -29,9 +29,9 @@ CONSOLE_NAME[8]=pcengine
 CONSOLE_NAME[9]=segacd
 CONSOLE_NAME[10]=sega32x
 CONSOLE_NAME[11]=mastersystem
-#CONSOLE_NAME[12]=xbox360
-#CONSOLE_NAME[13]=atari
-#CONSOLE_NAME[14]=neogeo
+CONSOLE_NAME[12]=xbox360
+CONSOLE_NAME[13]=atari
+CONSOLE_NAME[14]=neogeo
 
 RA_USER=
 RA_PASSWORD=
@@ -62,19 +62,19 @@ function help_message() {
 
 
 function check_dependencies() {
-    local pack
+    local cmd
     local answer
 
-    for pack in jq curl; do
-        if ! dpkg-query -W "$pack"; then
+    for cmd in jq curl; do
+        if ! which "$cmd" 2> /dev/null; then
             if ! which apt-get 2>/dev/null; then
-                echo "ERROR: missing dependency: $pack" >&2
-                echo "To use this tool you need to install \"$pack\" package. Please, install it and try again."
+                echo "ERROR: missing dependency: $cmd" >&2
+                echo "To use this tool you need to install \"$cmd\" package. Please, install it and try again."
                 safe_exit 1
             fi
         fi
-        echo "To use this tool you need to install \"$pack\"."
-        echo "Do you want to install \"$pack\" now? (if you're sure, type \"yes\" and press ENTER)"
+        echo "To use this tool you need to install \"$cmd\"."
+        echo "Do you want to install \"$cmd\" now? (if you're sure, type \"yes\" and press ENTER)"
         read -p 'Answer: ' answer
 
         if ! [[ "$answer" =~ ^[Yy][Ee][Ss]$ ]]; then
@@ -82,7 +82,7 @@ function check_dependencies() {
             safe_exit 1
         fi
 
-        sudo apt-get install "$pack"
+        sudo apt-get install "$cmd"
     done
 }
 
