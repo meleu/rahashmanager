@@ -72,17 +72,17 @@ function check_dependencies() {
                 echo "To use this tool you need to install \"$cmd\" package. Please, install it and try again."
                 safe_exit 1
             fi
-        fi
-        echo "To use this tool you need to install \"$cmd\"."
-        echo "Do you want to install \"$cmd\" now? (if you're sure, type \"yes\" and press ENTER)"
-        read -p 'Answer: ' answer
+            echo "To use this tool you need to install \"$cmd\"."
+            echo "Do you want to install \"$cmd\" now? (if you're sure, type \"yes\" and press ENTER)"
+            read -p 'Answer: ' answer
 
-        if ! [[ "$answer" =~ ^[Yy][Ee][Ss]$ ]]; then
-            echo "Aborting..."
-            safe_exit 1
-        fi
+            if ! [[ "$answer" =~ ^[Yy][Ee][Ss]$ ]]; then
+                echo "Aborting..."
+                safe_exit 1
+            fi
 
-        sudo apt-get install "$cmd"
+            sudo apt-get install "$cmd"
+        fi
     done
 }
 
