@@ -188,7 +188,6 @@ function get_game_info() {
 }
 
 
-
 function submit_game_title() {
     local json
     local error
@@ -217,7 +216,6 @@ function check_argument() {
         return 1
     fi
 }
-
 
 
 function parse_args() {
@@ -368,7 +366,7 @@ function main() {
     if [[ -f "$HASH_FILE" ]]; then
         while read -r line; do
             if ! [[ "$line" =~ $HASH_REGEX ]]; then
-                echo "Warning: ignoring invalid regex: \"$line\"" >&2
+                echo "Warning: ignoring invalid hash: \"$line\"" >&2
                 continue
             fi
             HASH="$line"
