@@ -66,8 +66,8 @@ function check_dependencies() {
     local answer
 
     for cmd in jq curl; do
-        if ! which "$cmd" 2> /dev/null; then
-            if ! which apt-get 2>/dev/null; then
+        if ! which "$cmd" >/dev/null 2>&1; then
+            if ! which apt-get >/dev/null 2>&1; then
                 echo "ERROR: missing dependency: $cmd" >&2
                 echo "To use this tool you need to install \"$cmd\" package. Please, install it and try again."
                 safe_exit 1
