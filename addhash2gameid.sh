@@ -16,6 +16,7 @@ readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_FULL="$SCRIPT_DIR/$SCRIPT_NAME"
 readonly GAMEID_REGEX='^[1-9][0-9]{0,9}$'
 readonly HASH_REGEX='^[A-Fa-f0-9]{32}$'
+readonly DELAY_REGEX='^[[:digit:]]*(\.[[:digit:]]*)?$'
 
 CONSOLE_NAME=()
 CONSOLE_NAME[1]=megadrive
@@ -40,6 +41,7 @@ GAME_ID=
 HASH_FILE=
 HASH=
 GAME_TITLE=
+DELAY=0
 
 
 # functions ###################################################################
@@ -280,7 +282,7 @@ function parse_args() {
                 fi
                 ;;
 
-#H --hash HASH           HASH is the hash to be linked to the game ID (see
+#H --hash HASH              HASH is the hash to be linked to the game ID (see
 #H                          --game-id).
 #H 
             --hash)
@@ -293,6 +295,18 @@ function parse_args() {
                 shift
                 ;;
 
+#H -d|--delay TIME          Add a delay of TIME seconds between each server
+#H                          request (used to avoid stressing the server).
+#H 
+            -d|--delay)
+                check_argument "$1" "$2" || ret=1
+                DELAY="$2"
+                if ! [[ "$DELAY" =~ $DELAY_REGEX ]]; then
+                    echo "ERROR: $1 $2: invalid delay." >&2
+                    ret=1
+                fi
+                shift
+                ;;
             *)  break
                 ;;
         esac
@@ -347,6 +361,7 @@ function main() {
     
     if [[ -n "$HASH_FILE" ]]; then
         echo "Hash list file: \"$HASH_FILE\""
+        echo "Requests delay: $DELAY seconds"
     elif [[ -n "$HASH" ]]; then
         echo "Hash..........: \"$HASH\""
     else # probably it'll never happen
@@ -371,6 +386,7 @@ function main() {
             fi
             HASH="$line"
             submit_game_title
+            sleep "$DELAY"
         done < "$HASH_FILE"
     elif [[ -n "$HASH" ]]; then
         submit_game_title
