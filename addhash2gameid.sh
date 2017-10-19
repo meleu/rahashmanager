@@ -17,6 +17,7 @@ readonly SCRIPT_FULL="$SCRIPT_DIR/$SCRIPT_NAME"
 readonly GAMEID_REGEX='^[1-9][0-9]{0,9}$'
 readonly HASH_REGEX='^[A-Fa-f0-9]{32}$'
 readonly DELAY_REGEX='^[[:digit:]]*(\.[[:digit:]]*)?$'
+readonly FAILED_HASHES="$SCRIPT_DIR/failed-hashes.txt"
 
 CONSOLE_NAME=()
 CONSOLE_NAME[1]=megadrive
@@ -48,6 +49,7 @@ DELAY=0
 
 function safe_exit() {
     rm -rf "$TMP_DIR"
+    [[ -s "$FAILED_HASHES" ]] || rm -f "$FAILED_HASHES"
     exit $1
 }
 
@@ -203,6 +205,7 @@ function submit_game_title() {
         echo "The hash \"$HASH\" was NOT linked to \"$GAME_TITLE\" (game ID: $GAME_ID)"
         error="$(echo "$json" | jq -r .Error)"
         [[ -n "$error" ]] && echo "ERROR: \"$error\"" >&2
+        [[ "$error" != "Failed to add duplicate md5"* ]] && echo "$HASH" >> "$FAILED_HASHES"
     else
         echo "SUCCESS: hash \"$HASH\" has been linked to \"$GAME_TITLE\" (game ID: $GAME_ID)"
     fi
@@ -377,6 +380,8 @@ function main() {
         echo "Aborting..."
         safe_exit 1
     fi
+
+    echo -n > "$FAILED_HASHES"
 
     if [[ -f "$HASH_FILE" ]]; then
         while read -r line; do
