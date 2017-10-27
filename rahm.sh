@@ -1,6 +1,6 @@
 #!/bin/bash
 # rahm.sh
-####################
+#########
 #
 # A tool for RetroAchievements devs to manage hashes linked to a game ID.
 #
@@ -10,7 +10,7 @@ readonly USAGE="
 USAGE:
 $(basename "$0") [OPTIONS]"
 
-readonly GIT_REPO="https://github.com/meleu/addhash2gameid.git"
+readonly GIT_REPO="https://github.com/meleu/rahashmanager.git"
 readonly SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_FULL="$SCRIPT_DIR/$SCRIPT_NAME"
@@ -230,24 +230,6 @@ function submit_game_title() {
 }
 
 
-function add_hash() {
-    local line
-
-    if [[ -f "$HASH_FILE" ]]; then
-        while read -r line; do
-            if ! [[ "$line" =~ $HASH_REGEX ]]; then
-                echo "WARNING: ignoring invalid hash: \"$line\"" >&2
-                continue
-            fi
-            HASH="$line"
-            submit_game_title
-        done < "$HASH_FILE"
-    elif [[ -n "$HASH" ]]; then
-        submit_game_title
-    fi
-}
-
-
 function get_cookie() {
     # authenticating on the website (getting the cookie).
     curl -s --data "r=/&u=${RA_USER}&p=${RA_PASSWORD}" --cookie-jar "$COOKIE" "http://retroachievements.org/login.php"
@@ -280,6 +262,29 @@ function unlink_game() {
     if ! grep -Fqi "location: http://retroachievements.org/game/${GAME_ID}?e=modify_game_ok" "$tmp_file"; then
         echo "ERROR: failed to unlink hashes from \"$GAME_TITLE\" (game ID $GAME_ID)" >&2
         return 1
+    fi
+}
+
+
+function add_hash() {
+    local line
+
+    if [[ -f "$HASH_FILE" ]]; then
+        readonly local game_original_hashlib="$(get_game_hashlib)"
+        while read -r line; do
+            if ! [[ "$line" =~ $HASH_REGEX ]]; then
+                echo "WARNING: ignoring invalid hash: \"$line\"" >&2
+                continue
+            fi
+            if echo "$game_original_hashlib" | grep -q "$line" ; then
+                echo "Ignoring \"$line\": already linked to this game." >&2
+                continue
+            fi
+            HASH="$line"
+            submit_game_title
+        done < "$HASH_FILE"
+    elif [[ -n "$HASH" ]]; then
+        submit_game_title
     fi
 }
 
