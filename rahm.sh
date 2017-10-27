@@ -1,5 +1,5 @@
 #!/bin/bash
-# rahashmanager.sh
+# rahm.sh
 ####################
 #
 # A tool for RetroAchievements devs to manage hashes linked to a game ID.
@@ -14,7 +14,7 @@ readonly GIT_REPO="https://github.com/meleu/addhash2gameid.git"
 readonly SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_FULL="$SCRIPT_DIR/$SCRIPT_NAME"
-readonly TMP_DIR="/tmp/rahash-manager_$$"
+readonly TMP_DIR="/tmp/rahm_$$"
 readonly COOKIE="$TMP_DIR/.racookie"
 readonly LOG_DIR="$SCRIPT_DIR/logs"
 readonly GAMEID_REGEX='^[1-9][0-9]{0,9}$'
@@ -515,7 +515,7 @@ function main() {
     parse_args "$@" || safe_exit 1
 
     mkdir -p "$LOG_DIR"
-    readonly REMOVED_HASHES_FILE="$LOG_DIR/unlinked_from_${GAME_ID}_$(date +%Y-%m-%d-%H%M%S)"
+    readonly REMOVED_HASHES_FILE="$LOG_DIR/unlinked_from_${GAME_ID}_$(date +%Y-%m-%d-%H%M%S).txt"
     mkdir -p "$TMP_DIR"
 
     fill_game_info
