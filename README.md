@@ -1,2 +1,2 @@
-# addhash2gameid
-A tool for RetroAchievements developers
+# rahashmanager
+A tool for RetroAchievements devs/admins.
