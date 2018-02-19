@@ -270,7 +270,7 @@ function add_hash() {
     local line
 
     if [[ -f "$HASH_FILE" ]]; then
-        readonly local game_original_hashlib="$(get_game_hashlib)"
+        local game_original_hashlib="$(get_game_hashlib)"
         while read -r line; do
             if ! [[ "$line" =~ $HASH_REGEX ]]; then
                 echo "WARNING: ignoring invalid hash: \"$line\"" >&2
@@ -295,7 +295,7 @@ function delete_hash() {
     local line
     local hashes2keep_file="$1"
     local game_hashlib_file="$(mktemp "$TMP_DIR/game_hashlib.XXXX")"
-    readonly local game_original_hashlib="$(get_game_hashlib)"
+    local game_original_hashlib="$(get_game_hashlib)"
 
     if [[ -z "$hashes2keep_file" ]]; then
         hashes2keep_file="$(mktemp "$TMP_DIR/hashes2keep.XXXX")"
@@ -327,12 +327,17 @@ function delete_hash() {
                     sed -i "/$HASH/d" "$hashes2keep_file"
                 fi
             else
-                echo "ERROR: failed to get the game ID for \"$HASH\" hash."
+                echo "ERROR: failed to get the game ID for \"$HASH\" hash." >&2
                 echo "       Are you sure it's linked to game ID ${GAME_ID}?" >&2
                 echo "Aborting..." >&2
                 safe_exit 1
             fi
         fi
+    fi
+
+    if diff "$hashes2keep_file" - <<< "$game_original_hashlib" >/dev/null; then
+        echo "Nothing to unlink!" >&2
+        return 0
     fi
 
     echo -n "Unlinking all hashes... " >&2
@@ -344,8 +349,9 @@ function delete_hash() {
     fi
     HASH_FILE="$hashes2keep_file"
 
-    echo -n "Relinking hashes you do NOT want to remove. Please wait..." >&2
-    add_hash 2> /dev/null
+    echo "Relinking hashes you do NOT want to remove. Please wait..." >&2
+#    add_hash 2> /dev/null
+    add_hash
 
     # checking if the hashes were added correctly
     get_game_hashlib > "$game_hashlib_file"
@@ -427,6 +433,19 @@ function parse_args() {
                     ret=1
                 fi
                 shift
+                ;;
+
+#H -l|--hashlib             Print the hashes linked to the given game ID and exit.
+#H 
+            -l|--hashlib)
+                if [[ -z "$GAME_ID" ]]; then
+                    echo "ERROR: missing game ID (see --game-id option)." >&2
+                    safe_exit 1
+                fi
+                fill_game_info
+                echo "--- hashes linked to game ID $GAME_ID - \"$GAME_TITLE\" (${CONSOLE_NAME[CONSOLE_ID]}):"
+                get_game_hashlib
+                safe_exit 0
                 ;;
 
 #H -f|--file FILE           Get from FILE the hash list to be linked/unlinked
@@ -517,11 +536,11 @@ function main() {
 
     [[ -z "$1" ]] && help_message
 
+    mkdir -p "$TMP_DIR"
     parse_args "$@" || safe_exit 1
 
     mkdir -p "$LOG_DIR"
     readonly REMOVED_HASHES_FILE="$LOG_DIR/unlinked_from_${GAME_ID}_$(date +%Y-%m-%d-%H%M%S).txt"
-    mkdir -p "$TMP_DIR"
 
     fill_game_info
     echo "====================="
