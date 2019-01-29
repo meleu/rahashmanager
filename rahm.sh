@@ -19,6 +19,7 @@ readonly COOKIE="$TMP_DIR/.racookie"
 readonly LOG_DIR="$SCRIPT_DIR/logs"
 readonly GAMEID_REGEX='^[1-9][0-9]{0,9}$'
 readonly HASH_REGEX='^[A-Fa-f0-9]{32}$'
+readonly RA_URL='https://retroachievements.org'
 
 CONSOLE_NAME=()
 CONSOLE_NAME[1]=megadrive
@@ -69,7 +70,7 @@ function help_message() {
 function yes_no() {
     local answer
     echo "Do you want to proceed? (if you're sure, type \"yes\" and press ENTER)" >&2
-    read -p 'Answer: ' answer
+    read -p 'Answer: ' answer < /dev/tty
     [[ "$answer" =~ ^[Yy][Ee][Ss]$ ]]
 }
 
@@ -143,7 +144,7 @@ function get_cheevos_token() {
     fi
 
     echo "Getting user's token..." >&2
-    RA_TOKEN="$(curl -s "http://retroachievements.org/dorequest.php?r=login&u=${RA_USER}&p=${RA_PASSWORD}" | jq -r .Token)"
+    RA_TOKEN="$(curl -s "$RA_URL/dorequest.php?r=login&u=${RA_USER}&p=${RA_PASSWORD}" | jq -r .Token)"
     if [[ "$RA_TOKEN" == null || -z "$RA_TOKEN" ]]; then
         echo "ERROR: cheevos authentication failed."
         safe_exit 1
@@ -159,7 +160,7 @@ function get_game_id() {
 	local gameid
 	local hash="$1"
 	[[ -z "$hash" ]] && return 1
-    gameid="$(curl -s "http://retroachievements.org/dorequest.php?r=gameid&m=$hash" | jq .GameID)"
+    gameid="$(curl -s "$RA_URL/dorequest.php?r=gameid&m=$hash" | jq .GameID)"
     [[ "$gameid" =~ $GAMEID_REGEX ]] || return 1
     echo "$gameid"
 }
@@ -178,7 +179,7 @@ function fill_game_info() {
     get_cheevos_token
 
     echo "Getting info about game $GAME_ID ..."
-    json="$(curl -s "http://retroachievements.org/dorequest.php?r=patch&u=${RA_USER}&g=${GAME_ID}&f=3&l=1&t=${RA_TOKEN}")"
+    json="$(curl -s "$RA_URL/dorequest.php?r=patch&u=${RA_USER}&g=${GAME_ID}&f=3&l=1&t=${RA_TOKEN}")"
     if [[ "$?" -ne 0 || -z "$json" ]]; then
         echo "ERROR: Failed to get data from RetroAchievements.org." >&2
         safe_exit 1
@@ -216,7 +217,7 @@ function submit_game_title() {
     local success
 
     json="$(curl -s -G --data-urlencode "i=${GAME_TITLE}" \
-            "http://retroachievements.org/dorequest.php?r=submitgametitle&u=${RA_USER}&t=${RA_TOKEN}&m=${HASH}&c=${CONSOLE_ID}")"
+            "$RA_URL/dorequest.php?r=submitgametitle&u=${RA_USER}&t=${RA_TOKEN}&m=${HASH}&c=${CONSOLE_ID}")"
 
     success="$(echo "$json" | jq .Success)"
     if [[ "$success" != true ]]; then
@@ -232,7 +233,7 @@ function submit_game_title() {
 
 function get_cookie() {
     # authenticating on the website (getting the cookie).
-    curl -s --data "r=/&u=${RA_USER}&p=${RA_PASSWORD}" --cookie-jar "$COOKIE" "http://retroachievements.org/login.php"
+    curl -s --data "r=/&u=${RA_USER}&p=${RA_PASSWORD}" --cookie-jar "$COOKIE" "$RA_URL/login.php"
 
     if ! grep -q "retroachievements.org.*TRUE.*/.*RA_User.*${RA_USER}" "$COOKIE"; then
         echo "ERROR: failed to authenticate on RetroAchievements.org website." >&2
@@ -243,26 +244,30 @@ function get_cookie() {
 
 function get_game_hashlib() {
     [[ -f "$COOKIE" ]] || get_cookie
-    curl -s --cookie "$COOKIE" "http://retroachievements.org/attemptunlink.php?g=${GAME_ID}" \
-    | grep -o '<ul><li><code>.*</code></li></ul>' \
-    | grep -Eo '[A-Fa-f0-9]{32}'
+    curl -s --cookie "$COOKIE" "$RA_URL/attemptunlink.php?g=${GAME_ID}" \
+    | grep -Eo '[A-Fa-f0-9]{32}' \
+    | sort -u
 }
 
 
-function unlink_game() {
+function unlink_hash() {
+    local md5_hash="$1"
     local tmp_file="$(mktemp "$TMP_DIR/tmpfile.XXXX")"
     echo -n > "$tmp_file"
 
     [[ -f "$COOKIE" ]] || get_cookie
 
-    [[ -z "$RA_USER" || -z "$GAME_ID" || -z "$GAME_TITLE" ]] && return 1
-    curl -v --cookie "$COOKIE" --data "u=${RA_USER}&g=${GAME_ID}&f=2&v=1" "http://retroachievements.org/requestmodifygame.php" \
+    [[ -z "$RA_USER" || -z "$GAME_ID" || -z "$GAME_TITLE" || -z "$md5_hash" ]] && return 1
+
+    curl -v --cookie "$COOKIE" --data "u=${RA_USER}&g=${GAME_ID}&f=3&v=${md5_hash}" "$RA_URL/requestmodifygame.php" \
         2> "$tmp_file"
 
-    if ! grep -Fqi "location: http://retroachievements.org/game/${GAME_ID}?e=modify_game_ok" "$tmp_file"; then
-        echo "ERROR: failed to unlink hashes from \"$GAME_TITLE\" (game ID $GAME_ID)" >&2
+    if ! grep -qi "location: http.*/game/${GAME_ID}?e=modify_game_ok" "$tmp_file"; then
+        echo "ERROR: failed to unlink \"${md5_hash}\" from \"$GAME_TITLE\" (game ID $GAME_ID)" >&2
         return 1
     fi
+
+    echo "SUCCESS: unlinked \"${md5_hash}\" from \"$GAME_TITLE\" (game ID $GAME_ID)" >&2
 }
 
 
@@ -289,18 +294,9 @@ function add_hash() {
 }
 
 
-# if the 1st argument is a valid file, it's considered as a list of hashes to 
-# keep linked. Any other pre-existing hash will be removed.
 function delete_hash() {
     local line
-    local hashes2keep_file="$1"
-    local game_hashlib_file="$(mktemp "$TMP_DIR/game_hashlib.XXXX")"
     local game_original_hashlib="$(get_game_hashlib)"
-
-    if [[ -z "$hashes2keep_file" ]]; then
-        hashes2keep_file="$(mktemp "$TMP_DIR/hashes2keep.XXXX")"
-        echo "$game_original_hashlib" > "$hashes2keep_file"
-    fi
 
     if [[ "$ACTION" =~ ^(-d|--delete)$ ]]; then
         if [[ -f "$HASH_FILE" ]]; then
@@ -311,7 +307,7 @@ function delete_hash() {
                 fi
                 if echo "$game_original_hashlib" | grep -q "$line"; then
                     # this is the hash we want to remove
-                    sed -i "/$line/d" "$hashes2keep_file"
+                    unlink_hash "$line"
                 else
                     echo "WARNING: ignoring \"$line\": NOT linked to game ID ${GAME_ID}" >&2
                 fi
@@ -324,7 +320,7 @@ function delete_hash() {
                     echo "Aborting..." >&2
                     safe_exit 1
                 else
-                    sed -i "/$HASH/d" "$hashes2keep_file"
+                    unlink_hash "$HASH"
                 fi
             else
                 echo "ERROR: failed to get the game ID for \"$HASH\" hash." >&2
@@ -333,46 +329,6 @@ function delete_hash() {
                 safe_exit 1
             fi
         fi
-    fi
-
-    if diff "$hashes2keep_file" - <<< "$game_original_hashlib" >/dev/null; then
-        echo "Nothing to unlink!" >&2
-        return 0
-    fi
-
-    echo -n "Unlinking all hashes... " >&2
-    if unlink_game; then
-        echo "Done!" >&2
-    else
-        echo "ERROR: failed to unlink hashes from the game \"$GAME_TITLE\" (game ID ${GAME_ID})." >&2
-        echo "Aborting..." >&2
-    fi
-    HASH_FILE="$hashes2keep_file"
-
-    echo "Relinking hashes you do NOT want to remove. Please wait..." >&2
-#    add_hash 2> /dev/null
-    add_hash
-
-    # checking if the hashes were added correctly
-    get_game_hashlib > "$game_hashlib_file"
-    if diff -q "$hashes2keep_file" "$game_hashlib_file" >/dev/null ; then
-        echo "Done!" >&2
-    else
-        while read -r line; do
-            grep -q "$line" "$game_hashlib_file" && continue
-            echo "WARNING: hash \"$line\" should be linked to \"$GAME_TITLE (game ID $GAME_ID) but was NOT." >&2
-            echo "         Maybe you want to link it individually later." >&2
-        done < "$hashes2keep_file"
-    fi
-
-    echo "$game_original_hashlib" | diff "$game_hashlib_file" - | sed '/^> /!d; s/^> //' > "$REMOVED_HASHES_FILE"
-    if [[ -s "$REMOVED_HASHES_FILE" ]]; then
-        echo
-        echo "Here is the list of hashes unlinked from \"$GAME_TITLE\" (game ID ${GAME_ID}):"
-        echo
-        cat "$REMOVED_HASHES_FILE"
-    else
-        rm -f "$REMOVED_HASHES_FILE"
     fi
 }
 
@@ -478,17 +434,13 @@ function parse_args() {
 
 #H -a|--add                 Tell the script that you want to add the given hash to
 #H                          RetroAchievements.org database (see: --hash and --file).
-#H                          This option can NOT be used with --delete or --keep-only.
+#H                          This option can NOT be used with --delete.
 #H 
 #H -d|--delete              Tell the script that you want to delete the given hash from
 #H                          RetroAchievements.org database (see: --hash and --file).
-#H                          This option can NOT be used with --add or --keep-only.
+#H                          This option can NOT be used with --add.
 #H 
-#H -k|--keep-only           Tell the script that you want to keep only the given hash
-#H                          in RetroAchievements.org database (see: --hash and --file).
-#H                          This option can NOT be used with --add or --delete.
-#H 
-            -a|--add|-d|--delete|-k|--keep-only)
+            -a|--add|-d|--delete)
                 if [[ -n "$ACTION" ]]; then
                     echo "ERROR: the option \"$1\" can NOT be used with \"$ACTION\"." >&2
                     echo "PLEASE, BE VERY CAREFUL WHEN USING THIS TOOL!" >&2
@@ -515,7 +467,7 @@ function parse_args() {
     fi
 
     if [[ -z "$ACTION" ]]; then
-        echo "ERROR: you must define what to do with the given hash (see --add, --delete or --keep-only  options)." >&2
+        echo "ERROR: you must define what to do with the given hash (see --add or --delete options)." >&2
         ret=1
     fi
 
@@ -586,27 +538,6 @@ function main() {
             fi
             echo
             delete_hash
-            ;;
-
-        -k|--keep-only)
-            local hash_list_file="$(mktemp "$TMP_DIR/keeponly_hashes.XXXX")"
-            if [[ -n "$HASH_FILE" ]]; then
-                cat "$HASH_FILE" > "$hash_list_file"
-            elif [[ -n "$HASH" ]]; then
-                echo "$HASH" > "$hash_list_file"
-            else # probably it'll never happen
-                echo "ERROR: Missing hash info! Aborting..." >&2
-                safe_exit 1
-            fi
-            echo "ACTION........: KEEP ONLY the given hash(es) linked to the game"
-            echo "                (unlinked hashes will be saved in \"$REMOVED_HASHES_FILE\")"
-            echo
-            if ! yes_no; then
-                echo "Aborting..."
-                safe_exit 1
-            fi
-            echo
-            delete_hash "$hash_list_file"
             ;;
     esac
 
