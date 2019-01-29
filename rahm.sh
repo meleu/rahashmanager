@@ -101,7 +101,7 @@ function check_dependencies() {
 # TODO: this function needs more intensive tests
 function update_files() {
     local err_flag=0
-    local dir="$SCRIPT_DIR/.."
+    local dir="$SCRIPT_DIR"
 
     if [[ -d "$dir/.git" ]]; then
         pushd "$dir" > /dev/null
