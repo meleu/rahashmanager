@@ -75,6 +75,24 @@ function yes_no() {
 }
 
 
+function urlencode() {
+    local LC_ALL=C
+    local string="$*"
+    local length="${#string}"
+    local char
+
+    for (( i = 0; i < length; i++ )); do
+        char="${string:i:1}"
+        if [[ "$char" == [a-zA-Z0-9.~_-] ]]; then
+            printf "$char" 
+        else
+            printf '%%%02X' "'$char" 
+        fi
+    done
+    printf '\n' # opcional
+}
+
+
 function check_dependencies() {
     local cmd
 
@@ -374,7 +392,7 @@ function parse_args() {
             -p|--password)
                 check_argument "$1" "$2" || ret=1
                 shift
-                RA_PASSWORD="$1"
+                RA_PASSWORD="$(urlencode "$1")"
                 ;;
 
 #H -g|--game-id GAME_ID     Check if there are cheevos for a given GAME_ID and 
