@@ -21,21 +21,41 @@ readonly GAMEID_REGEX='^[1-9][0-9]{0,9}$'
 readonly HASH_REGEX='^[A-Fa-f0-9]{32}$'
 readonly RA_URL='https://retroachievements.org'
 
-CONSOLE_NAME=()
-CONSOLE_NAME[1]=megadrive
-CONSOLE_NAME[2]=n64
-CONSOLE_NAME[3]=snes
-CONSOLE_NAME[4]=gb
-CONSOLE_NAME[5]=gba
-CONSOLE_NAME[6]=gbc
-CONSOLE_NAME[7]=nes
-CONSOLE_NAME[8]=pcengine
-CONSOLE_NAME[9]=segacd
-CONSOLE_NAME[10]=sega32x
-CONSOLE_NAME[11]=mastersystem
-CONSOLE_NAME[12]=xbox360
-CONSOLE_NAME[13]=atari
-CONSOLE_NAME[14]=neogeo
+# get console IDs from 
+# https://github.com/RetroAchievements/RAWeb/blob/master/lib/database/release.php
+CONSOLE_NAME=(
+    [1]='Mega Drive/Genesis'
+    [2]='Nintendo 64'
+    [3]='SNES'
+    [4]='Game Boy'
+    [5]='Game Boy Advance'
+    [6]='Game Boy Color'
+    [7]='NES'
+    [8]='PC Engine'
+    [9]='Sega CD'
+    [10]='Sega 32X'
+    [11]='Master System'
+    [12]='PlayStation'
+    [13]='Atari Lynx'
+    [14]='Neo Geo Pocket'
+    [15]='Game Gear'
+    [17]='Atari Jaguar'
+    [18]='Nintendo DS'
+    [24]='Pokemon Mini'
+    [25]='Atari 2600'
+    [27]='Arcade'
+    [28]='Virtual Boy'
+    [29]='MSX'
+    [33]='SG-1000'
+    [38]='Apple II'
+    [39]='Sega Saturn'
+    [44]='ColecoVision'
+    [46]='Vectrex'
+    [47]='PC-8000/8800'
+    [51]='Atari 7800'
+    [53]='WonderSwan'
+    [101]='Events (not an actual console)'
+)
 
 RA_USER=
 RA_PASSWORD=
