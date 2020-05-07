@@ -271,7 +271,7 @@ function submit_game_title() {
 
 function get_cookie() {
     # authenticating on the website (getting the cookie).
-    curl -s --data "r=/&u=${RA_USER}&p=${RA_PASSWORD}" --cookie-jar "$COOKIE" "$RA_URL/login.php"
+    curl -s --data "r=/&u=${RA_USER}&p=${RA_PASSWORD}" --cookie-jar "$COOKIE" "$RA_URL/request/auth/login.php"
 
     if ! grep -q "retroachievements.org.*TRUE.*/.*RA_User.*${RA_USER}" "$COOKIE"; then
         echo "ERROR: failed to authenticate on RetroAchievements.org website." >&2
@@ -285,27 +285,6 @@ function get_game_hashlib() {
     curl -s --cookie "$COOKIE" "$RA_URL/attemptunlink.php?g=${GAME_ID}" \
     | grep -Eo '[A-Fa-f0-9]{32}' \
     | sort -u
-}
-
-
-function unlink_hash() {
-    local md5_hash="$1"
-    local tmp_file="$(mktemp "$TMP_DIR/tmpfile.XXXX")"
-    echo -n > "$tmp_file"
-
-    [[ -f "$COOKIE" ]] || get_cookie
-
-    [[ -z "$RA_USER" || -z "$GAME_ID" || -z "$GAME_TITLE" || -z "$md5_hash" ]] && return 1
-
-    curl -v --cookie "$COOKIE" --data "u=${RA_USER}&g=${GAME_ID}&f=3&v=${md5_hash}" "$RA_URL/requestmodifygame.php" \
-        2> "$tmp_file"
-
-    if ! grep -qi "location: http.*/game/${GAME_ID}?e=modify_game_ok" "$tmp_file"; then
-        echo "ERROR: failed to unlink \"${md5_hash}\" from \"$GAME_TITLE\" (game ID $GAME_ID)" >&2
-        return 1
-    fi
-
-    echo "SUCCESS: unlinked \"${md5_hash}\" from \"$GAME_TITLE\" (game ID $GAME_ID)" >&2
 }
 
 
@@ -331,44 +310,6 @@ function add_hash() {
     fi
 }
 
-
-function delete_hash() {
-    local line
-    local game_original_hashlib="$(get_game_hashlib)"
-
-    if [[ "$ACTION" =~ ^(-d|--delete)$ ]]; then
-        if [[ -f "$HASH_FILE" ]]; then
-            while read -r line; do
-                if ! [[ "$line" =~ $HASH_REGEX ]]; then
-                    echo "WARNING: ignoring invalid hash: \"$line\"" >&2
-                    continue
-                fi
-                if echo "$game_original_hashlib" | grep -q "$line"; then
-                    # this is the hash we want to remove
-                    unlink_hash "$line"
-                else
-                    echo "WARNING: ignoring \"$line\": NOT linked to game ID ${GAME_ID}" >&2
-                fi
-            done < "$HASH_FILE"
-        elif [[ -n "$HASH" ]]; then
-            local gameid
-            if gameid="$(get_game_id "$HASH")"; then
-                if [[ "$gameid" != "$GAME_ID" ]]; then
-                    echo "ERROR: the \"$HASH\" hash is NOT linked to the game ID $GAME_ID (it's linked to the game ID $gameid)." >&2
-                    echo "Aborting..." >&2
-                    safe_exit 1
-                else
-                    unlink_hash "$HASH"
-                fi
-            else
-                echo "ERROR: failed to get the game ID for \"$HASH\" hash." >&2
-                echo "       Are you sure it's linked to game ID ${GAME_ID}?" >&2
-                echo "Aborting..." >&2
-                safe_exit 1
-            fi
-        fi
-    fi
-}
 
 
 # helping to deal with command line arguments
@@ -474,11 +415,7 @@ function parse_args() {
 #H                          RetroAchievements.org database (see: --hash and --file).
 #H                          This option can NOT be used with --delete.
 #H 
-#H -d|--delete              Tell the script that you want to delete the given hash from
-#H                          RetroAchievements.org database (see: --hash and --file).
-#H                          This option can NOT be used with --add.
-#H 
-            -a|--add|-d|--delete)
+            -a|--add)
                 if [[ -n "$ACTION" ]]; then
                     echo "ERROR: the option \"$1\" can NOT be used with \"$ACTION\"." >&2
                     echo "PLEASE, BE VERY CAREFUL WHEN USING THIS TOOL!" >&2
@@ -486,6 +423,13 @@ function parse_args() {
                 else
                     ACTION="$1"
                 fi
+                ;;
+
+#H -d|--delete              [deprecated] Use the website instead.
+#H 
+            -d|--delete)
+                echo "ERROR: the '--delete' option is not supported anymore. Use the website instead."
+                safe_exit 0
                 ;;
 
             *)  break
@@ -567,16 +511,6 @@ function main() {
             add_hash
             ;;
 
-        -d|--delete)
-            echo "ACTION........: UNLINK the given hash(es) from the game"
-            echo
-            if ! yes_no; then
-                echo "Aborting..."
-                safe_exit 1
-            fi
-            echo
-            delete_hash
-            ;;
     esac
 
     safe_exit
